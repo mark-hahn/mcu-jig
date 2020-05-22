@@ -1,0 +1,140 @@
+MCU-ST interface spec
+
+Two pins (ms1/ms2) with pull-ups select a configuration 1..3.  Each config 
+    has one bipolar motor at motor number 0.  Rest of mcu varies.
+  i2c 0x20, Head pcb
+    4 motors
+      W: rotation bipolar
+      Z: pincher height
+      V: pincher width
+      C: camera (zoom)
+    ctrl panel (switch, buzzer, and leds)
+    left/right light bars
+    buzzer
+  i2c 0x30, X pcb
+    1 motor
+      X: X axis bipolar (no extra features)
+  i2c 0x40, Base pcb
+    2 motors
+      Y: Y axis bipolar
+      P: paste
+
+Any I2C write to MCU is a command.  Any read returns 1 or more status bytes.
+  All commands are started immediately even when motor is busy (moving, homing, etc.)
+  If needed, the host can check for finished by polling busy-bit in state
+  No commands are buffered like G-Code commands are
+  (So commands can be linked to async operations such as clicking on a webpage)
+  do not change settings when busy
+  16-bit words may be wrong in status reads when busy
+
+always 1/32 microstepping
+160 steps/mm
+64k steps in 400 mm
+speed is steps/sec, max of 32k is 200 mm/sec
+
+===============================
+
+settings per motor (all are 16-bits)
+  acceleration
+  jerk
+  homing speed
+  homing backup speed
+  home direction
+  home position offset
+  position value after homing
+  flip all motor direction
+  limit switch polarity
+
+===============================
+
+commands (mater -> slave)
+  byte 0: mmm ooooo
+    mmm:   motor idx
+    ooooo: opcode
+
+  0x00 read          1-byte  sets motor idx for status read; affects only next read      
+  0x01 home forward  1 byte
+  0x02 home backward 1 byte
+  0x03 move          5 bytes
+    1,2: target position
+    3,4: target speed
+  0x04 jog          5 bytes  no homing needed
+    1,2: signed distance
+    3,4: target speed
+  0x04 soft stop     1 byte  
+  0x05 reset         1 byte
+  0x05 settings      n bytes
+    1: number of 16-bit setting words that follow
+    2...settings words
+  0x06 led           1 byte  (head only)
+    1: WMLRwmlr  uppercase turns led on, lowercase turns off
+  0x07 buzzer        3 bytes
+    1: duration      duration in 50 ms (1/20 sec) units, zero stops buzzer immediately
+    2: frequency     frequency in 100 Hz units, STM8 beep supports 1,2,4 KHz 
+                     (frequency only supported with some buzzers)
+  0x08 set target    2 bytes
+    1: VVxxDDxx  VV is right/left output values, DD is direction (1: output)
+  0x09 send to driver uart, 7-bytes
+    1:       register
+    2,3,4,5: data
+    6:       crc
+  0x0a 2-bytes, request read from bipolar uart (results put in status)
+    1: register
+
+===============================
+
+status bytes
+  status:   eeeeesbo
+    eeeee: error code (reading clears error)
+    s: power    power switch, head mcu only
+    b: busy     homing, moving, or stopping
+    o: overheat warning (bipolar only)
+
+  status2: 0000ttoh
+    tt: left/right target input values
+    o: motor on   (not in reset)
+    h: homed      homed since last reset
+  
+  bipolar uart read register, uint8
+  bipolar uart read result,   uint32
+  test position 16-bits, (set during homing, see notes)
+  current position
+  current speed
+  haveCommand;
+  haveSettings;
+  homing;
+  homingState;
+
+===============================
+
+status reads (slave -> master) length is arbitrary byte read count
+  1... if after read command, status bytes from one motor
+  1... if not after read command, status bytes from all motors interleaved
+
+===============================
+
+error codes:
+  OVERHEAT_ERROR        bipolar overheated (bipolar results delayed from cmd)
+  OVERFLOW_ERROR        i2c data received before last used
+  STEP_RATE_ERROR       step rate too fast for MCU, planning not ready
+  NO_SETTINGS           no settings
+  NOT_HOMED             move cmd when not homed
+  WIFI_RST              pwr switch was toggled five times (not really error)
+
+
+planner block
+  - start position
+  - start speed
+  - accelleration
+  - direction
+  
+===============================
+
+Notes:
+
+The focus motor is not included in the instructions above.  The arducam camera 
+has a built-in focus motor on i2c at address 0x0c.  The focus value is the 
+first two data bytes (16-bit word 0-1023).
+
+  curPos is stored in testPos when homing deactivates limit switch backing up
+  this allows testing to make sure no steps are missed when doing move/home
