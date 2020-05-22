@@ -30,7 +30,7 @@ Any I2C write to MCU is a command.  Any read returns 1 or more status bytes.
 always 1/32 microstepping
 160 steps/mm
 64k steps in 400 mm
-speed is steps/sec, max of 32k is 200 mm/sec
+speed is in mm/sec (1..255)
 
 ===============================
 
@@ -55,30 +55,33 @@ commands (mater -> slave)
   0x00 read          1-byte  sets motor idx for status read; affects only next read      
   0x01 home forward  1 byte
   0x02 home backward 1 byte
-  0x03 move          5 bytes
-    1,2: target position
-    3,4: target speed
-  0x04 jog          5 bytes  no homing needed
-    1,2: signed distance
-    3,4: target speed
-  0x04 soft stop     1 byte  
-  0x05 reset         1 byte
-  0x05 settings      n bytes
+  0x03 move          4 bytes
+    1,2: target position     1/160 mm units
+    3:   speed               mm/sec
+  0x04 jog fwd       4 bytes  no homing needed, stops at 64000
+    1,2: distance    
+    3:   speed       
+  0x05 jog back      4 bytes  no homing needed, stops at 0
+    1,2: distance
+    3:   speed       
+  0x06 soft stop     1 byte  
+  0x07 reset         1 byte
+  0x08 settings      n bytes
     1: number of 16-bit setting words that follow
     2...settings words
-  0x06 led           1 byte  (head only)
+  0x09 led           1 byte  (head only)
     1: WMLRwmlr  uppercase turns led on, lowercase turns off
-  0x07 buzzer        3 bytes
+  0x0a buzzer        3 bytes
     1: duration      duration in 50 ms (1/20 sec) units, zero stops buzzer immediately
     2: frequency     frequency in 100 Hz units, STM8 beep supports 1,2,4 KHz 
                      (frequency only supported with some buzzers)
-  0x08 set target    2 bytes
+  0x0b set target    2 bytes
     1: VVxxDDxx  VV is right/left output values, DD is direction (1: output)
-  0x09 send to driver uart, 7-bytes
+  0x0c send to driver uart, 7-bytes
     1:       register
     2,3,4,5: data
     6:       crc
-  0x0a 2-bytes, request read from bipolar uart (results put in status)
+  0x0d 2-bytes, request read from bipolar uart (results put in status)
     1: register
 
 ===============================

@@ -1,0 +1,34 @@
+
+plan block
+  dir
+  accell (0xff00 means use speed intead of inc/dec) 
+  speed (0 is stop)
+  step count (1-255), uses repetition counter
+
+tim1 with oc4 set to pwm mode, 100 compare value
+
+inverse function
+  255 -> 195
+  1   -> 49999
+
+max speed ...
+  steps = dist / distPerStep  (dist in mm)
+  255/(1/160) => 40800 steps  (255mm dist)
+
+  steps/sec = 40800 (255 mm/sec)
+  sec/step  = 1/(steps/sec)
+  1/40800 => 24.5 usecs
+
+  clksPerStep = clksPerSec/stepsPerSec (steps/sec {speed})
+  (16e6/2)/40800 => 196  (counter limit = 196 {195 in reg})
+
+min speed ...
+  steps = dist / distPerStep  (dist in mm)
+  1/(1/160) => 160 steps  ( 1mm dist)
+
+  steps/sec = 160 (1 mm/sec)
+  sec/step  = 1/(steps/sec)
+  1/160 => 6250 usecs  (sec/step)
+
+  clksPerStep = clksPerSec/stepsPerSec (steps/sec {speed})
+  (16e6/2)/160 => 50000  (counter limit = 50000 {49999 in reg})
